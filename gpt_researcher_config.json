@@ -1,0 +1,8 @@
+{
+  "llm_provider": "generic",
+  "llm_model": "gemini-3.1-pro-preview",
+  "openai_api_key": "",
+  "openai_base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+  "temperature": 0.2,
+  "max_tokens": 4000
+}

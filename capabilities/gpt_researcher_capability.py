@@ -46,6 +46,11 @@ class GPTResearcherCapability(CapabilityImpl):
         self._fallback = WebSearchCapability()
         self._checked = False
         self._available = False
+        # Path para config custom (usa Gemini via endpoint OpenAI-compatible)
+        self._config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "gpt_researcher_config.json"
+        )
 
     def _check_availability(self) -> tuple[bool, str]:
         if self._checked:
@@ -87,14 +92,19 @@ class GPTResearcherCapability(CapabilityImpl):
             from gpt_researcher import GPTResearcher  # type: ignore
             import asyncio
 
+            # Construir config com a API key do Gemini (do ambiente)
+            config_path = self._build_runtime_config()
+
             researcher = GPTResearcher(
                 query=query,
                 report_type=report_type,
-                max_sections=int(inputs.get("max_results", 3)),
+                config_path=config_path,
             )
 
             async def _run():
-                report = await researcher.research()
+                # API correcta do GPT-Researcher: conduct_research() + write_report()
+                await researcher.conduct_research()
+                report = await researcher.write_report()
                 return report
 
             try:
@@ -158,3 +168,42 @@ class GPTResearcherCapability(CapabilityImpl):
             # Fallback DuckDuckGo — usar verificação do fallback
             return self._fallback.verify(result, inputs)
         return VerificationResult(passed=all(c["passed"] for c in checks), checks=checks)
+
+    def _build_runtime_config(self) -> Optional[str]:
+        """
+        Cria config file runtime com a API key do ambiente.
+        GPT-Researcher precisa da key no JSON config.
+        """
+        import json
+        gemini_key = os.environ.get("GEMINI_API_KEY", "")
+        openai_key = os.environ.get("OPENAI_API_KEY", "")
+
+        config = {
+            "temperature": 0.2,
+            "max_tokens": 4000,
+        }
+
+        if gemini_key:
+            config["llm_provider"] = "generic"
+            config["llm_model"] = "gemini-3.1-pro-preview"
+            config["openai_api_key"] = gemini_key
+            config["openai_base_url"] = "https://generativelanguage.googleapis.com/v1beta/openai"
+            # Embedding: Gemini não tem endpoint de embedding OpenAI-compatible
+            # usar Fake embeddings como fallback
+            config["embedding_provider"] = "ollama"
+            config["embedding_model"] = "nomic-embed-text"
+        elif openai_key:
+            config["llm_provider"] = "openai"
+            config["llm_model"] = "gpt-4o-mini"
+            config["openai_api_key"] = openai_key
+        else:
+            return None
+
+        # Escrever config file temporário
+        import tempfile
+        config_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, prefix="gpt_researcher_"
+        )
+        json.dump(config, config_file, indent=2)
+        config_file.close()
+        return config_file.name

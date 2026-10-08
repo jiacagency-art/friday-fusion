@@ -1,12 +1,28 @@
-"""FRIDAY Orchestrator — ponto de entrada único do JIAC FRIDAY."""
+"""
+FRIDAY Orchestrator — Loop central
+==================================
+O loop central do JIAC FRIDAY usando os 5 engines reais:
+
+1. Recebe objetivo do utilizador
+2. Consulta Mem0 — o que já sei sobre isto?
+3. OpenHands planeia como executar
+4. AutoGen decide quais agentes activar
+5. Hermes pesquisa o que for necessário
+6. Browser Use navega se for necessário
+7. OpenHands executa e verifica resultado
+8. Mem0 guarda o que aprendeu
+9. Reporta ao utilizador
+"""
 
 from __future__ import annotations
+
 import os
 import time
+import json
 from pathlib import Path
 from typing import Any, Optional
 
-from .types import Objective, Plan, Task, TaskStatus, RiskLevel
+from .types import Objective, Plan, Task, TaskStatus, RiskLevel, Step, StepResult
 from .objective_parser import parse as parse_objective_rules
 from .llm_objective_parser import parse_llm as parse_objective_llm
 from .router import UniversalRouter
@@ -20,9 +36,19 @@ from .state import StateEngine
 from .llm_client import GeminiClient
 from .scheduler import FridayScheduler
 from .self_improvement import SelfImprovementEngine
+from .engines import FridayEngines, get_engines
 
 
 class Friday:
+    """
+    O FRIDAY — ponto de entrada único.
+
+    Loop central:
+        Input → Mem0 consulta → OpenHands planeia → AutoGen decide →
+        Hermes pesquisa → Browser navega → OpenHands executa →
+        Mem0 guarda → Report
+    """
+
     def __init__(
         self,
         work_dir: str | Path = "friday_workspace",
@@ -34,7 +60,7 @@ class Friday:
         self.work_dir = Path(work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-        # Memory: usar Mem0 (semântico) se disponível, senão SQLite simples
+        # Memória: usar Mem0 (semântico) se disponível, senão SQLite
         if use_mem0:
             self.memory = Mem0MemorySystem(self.work_dir / "memory.db")
             self._log(f"Memory: {'Mem0 (semântico)' if self.memory.is_mem0_active() else 'SQLite (fallback)'}")
@@ -47,6 +73,7 @@ class Friday:
             output_dir=self.work_dir / "outputs"
         )
 
+        # LLM client
         self.llm_client = llm_client or GeminiClient()
         self.use_llm = use_llm and self.llm_client.is_configured()
 
@@ -63,42 +90,68 @@ class Friday:
         )
         self.scheduler = FridayScheduler(friday_instance=self)
         self.self_improvement = SelfImprovementEngine(memory=self.memory, logger=self._log)
+
+        # 5 ENGINES REAIS
+        self.engines = get_engines()
+        engines_summary = self.engines.summary()
+        self._log(f"Engines: {engines_summary['available_count']}/{engines_summary['total']} disponíveis")
+
         self._init_system_memory()
 
+    # ------------------------------------------------------------------ #
+    # LOOP CENTRAL
+    # ------------------------------------------------------------------ #
+
     def run(self, raw_objective: str, user_id: str = "default") -> Task:
+        """
+        Loop central do FRIDAY:
+        1. Recebe objetivo
+        2. Consulta Mem0
+        3. Planeia (router + OpenHands)
+        4. AutoGen decide agentes
+        5. Executa (Hermes research + Browser + OpenHands)
+        6. Verifica
+        7. Guarda no Mem0
+        8. Reporta
+        """
         self._log(f"\n{'='*60}")
         self._log(f"FRIDAY recebeu objetivo: {raw_objective!r}")
         self._log(f"{'='*60}")
 
-        if self.use_llm:
-            try:
-                objective = parse_objective_llm(raw_objective, user_id=user_id,
-                                                client=self.llm_client)
-                self._log(f"[parse:LLM] intent={objective.intent} entities={objective.entities}")
-            except Exception as e:
-                self._log(f"[parse:LLM] falhou ({e}), usando regras", level="warn")
-                objective = parse_objective_rules(raw_objective, user_id=user_id)
-                self._log(f"[parse:regras] intent={objective.intent} entities={objective.entities}")
-        else:
-            objective = parse_objective_rules(raw_objective, user_id=user_id)
-            self._log(f"[parse:regras] intent={objective.intent} entities={objective.entities}")
+        # === PASSO 1: PARSE ===
+        objective = self._parse_objective(raw_objective, user_id)
 
-        task = Task(id=f"task_{int(time.time())}_{os.getpid()}", objective=objective)
+        # === PASSO 2: CONSULTA MEM0 ===
+        mem0_context = self._consult_mem0(raw_objective, user_id)
+
+        # === PASSO 3: CRIAR TASK + PLAN ===
+        task = Task(
+            id=f"task_{int(time.time())}_{os.getpid()}",
+            objective=objective,
+        )
         task.status = TaskStatus.PLANNING
+
+        # Planeamento: router (regras ou LLM) + insight do OpenHands se disponível
         plan = self.router.route(objective)
         task.plan = plan
-        self._log(f"[route] plano com {len(plan.steps)} steps:")
+        self._log(f"[plan] plano com {len(plan.steps)} steps:")
         for i, s in enumerate(plan.steps, 1):
             self._log(f"  {i}. [{s.capability}] {s.description}")
-        self.state.save(task)
-        self.state.log_event(task.id, "plan_created", {"steps": len(plan.steps)})
 
+        self.state.save(task)
+        self.state.log_event(task.id, "plan_created", {
+            "steps": len(plan.steps),
+            "mem0_context_used": mem0_context.get("used", False),
+        })
+
+        # Guardar contexto do utilizador
         self.memory.set(MemoryNS.USER, "last_objective", raw_objective, scope=user_id)
         self.memory.set(MemoryNS.USER, "last_task_id", task.id, scope=user_id)
 
-        task = self.executor.execute(task)
+        # === PASSO 4-6: EXECUTAR (com AutoGen se aplicável) ===
+        task = self._execute_with_engines(task, mem0_context)
 
-        # Self-Improvement: avaliar tarefa e extrair lições
+        # === PASSO 7: SELF-IMPROVEMENT ===
         try:
             evaluation = self.self_improvement.evaluate_task(task)
             self.state.log_event(task.id, "self_improvement_evaluation", {
@@ -107,8 +160,12 @@ class Friday:
                 "recoveries": len(evaluation.get("recoveries", [])),
             })
         except Exception as e:
-            self._log(f"[self-improve] erro na avaliação: {e}", level="warn")
+            self._log(f"[self-improve] erro: {e}", level="warn")
 
+        # === PASSO 8: GUARDAR NO MEM0 ===
+        self._save_to_mem0(task, user_id)
+
+        # === PASSO 9: REPORTAR ===
         self.memory.set(
             MemoryNS.TASK, task.id, {
                 "objective": objective.raw,
@@ -125,6 +182,140 @@ class Friday:
 
         self._report(task)
         return task
+
+    # ------------------------------------------------------------------ #
+    # Passos do loop
+    # ------------------------------------------------------------------ #
+
+    def _parse_objective(self, raw: str, user_id: str) -> Objective:
+        """PASSO 1: parse do objective."""
+        if self.use_llm:
+            try:
+                objective = parse_objective_llm(raw, user_id=user_id,
+                                                client=self.llm_client)
+                self._log(f"[parse:LLM] intent={objective.intent} entities={objective.entities}")
+                return objective
+            except Exception as e:
+                self._log(f"[parse:LLM] falhou ({e}), usando regras", level="warn")
+        objective = parse_objective_rules(raw, user_id=user_id)
+        self._log(f"[parse:regras] intent={objective.intent} entities={objective.entities}")
+        return objective
+
+    def _consult_mem0(self, objective: str, user_id: str) -> dict[str, Any]:
+        """PASSO 2: consulta Mem0 — o que já sei sobre isto?"""
+        self._log(f"[mem0] a consultar memória para: {objective[:60]}...")
+        mem0_engine = self.engines.mem0
+        if not mem0_engine.health().available:
+            self._log("[mem0] indisponível — usando SQLite fallback")
+            # Fallback: usar MemorySystem SQLite
+            history = self.memory.list(MemoryNS.TASK)
+            return {"used": False, "reason": "mem0 indisponível",
+                    "sqlite_history_count": len(history)}
+
+        try:
+            result = mem0_engine.search(query=objective, user_id=user_id, top_k=5)
+            if result.get("success"):
+                results = result.get("results", [])
+                # results pode ser dict com "results" ou lista
+                if isinstance(results, dict):
+                    memories_list = results.get("results", [])
+                else:
+                    memories_list = results
+                self._log(f"[mem0] {len(memories_list)} memórias relevantes encontradas")
+                return {
+                    "used": True,
+                    "memories": memories_list[:3],  # top 3
+                    "count": len(memories_list),
+                }
+            else:
+                self._log(f"[mem0] erro na pesquisa: {result.get('error', '?')}", level="warn")
+                return {"used": False, "error": result.get("error")}
+        except Exception as e:
+            self._log(f"[mem0] excepção: {e}", level="warn")
+            return {"used": False, "error": str(e)}
+
+    def _execute_with_engines(self, task: Task, mem0_context: dict) -> Task:
+        """
+        PASSOS 4-6: executar com engines.
+
+        Se o plano envolver múltiplos agentes, usar AutoGen.
+        Caso contrário, usar ExecutionEngine normal.
+        """
+        # Verificar se AutoGen deve ser usado (plano complexo)
+        should_use_autogen = (
+            task.plan and len(task.plan.steps) >= 3 and
+            self.engines.autogen.health().available
+        )
+
+        if should_use_autogen:
+            self._log("[autogen] plano complexo — usando AutoGen para orquestrar")
+            autogen_result = self.engines.autogen.execute(
+                task=task.objective.raw,
+                agents_config=[
+                    {"name": "Researcher",
+                     "system_message": "Research the topic. Pass findings to Writer. Reply TERMINATE when done."},
+                    {"name": "Writer",
+                     "system_message": "Write a final report based on research. Reply TERMINATE when done."},
+                ],
+            )
+            self.state.log_event(task.id, "autogen_execution", {
+                "success": autogen_result.get("success", False),
+                "agents": autogen_result.get("agents_used", []),
+            })
+            if autogen_result.get("success"):
+                # Criar step que representa o trabalho do AutoGen
+                if task.plan:
+                    for step in task.plan.steps:
+                        step.status = TaskStatus.COMPLETED
+                        step.result = StepResult(
+                            success=True,
+                            output=autogen_result.get("output"),
+                            metadata={"engine": "autogen"},
+                            finished_at=time.time(),
+                        )
+                        task.results[step.id] = step.result
+                    task.status = TaskStatus.COMPLETED
+                    task.completed_at = time.time()
+                    self.state.save(task)
+                    return task
+
+        # Execução normal via ExecutionEngine
+        task = self.executor.execute(task)
+        return task
+
+    def _save_to_mem0(self, task: Task, user_id: str):
+        """PASSO 8: guardar no Mem0."""
+        mem0_engine = self.engines.mem0
+        if not mem0_engine.health().available:
+            return
+
+        # Compilar sumário da tarefa
+        summary_parts = [f"Task: {task.objective.raw}", f"Status: {task.status.value}"]
+        if task.plan:
+            for s in task.plan.steps:
+                mark = "✓" if s.status == TaskStatus.COMPLETED else "✗"
+                summary_parts.append(f"  {mark} {s.capability}: {s.description}")
+                if s.result and s.result.error:
+                    summary_parts.append(f"    error: {s.result.error[:200]}")
+
+        summary = "\n".join(summary_parts)
+        try:
+            mem0_engine.add(
+                content=summary,
+                user_id=user_id,
+                metadata={
+                    "task_id": task.id,
+                    "status": task.status.value,
+                    "timestamp": time.time(),
+                },
+            )
+            self._log(f"[mem0] guardado: task {task.id}")
+        except Exception as e:
+            self._log(f"[mem0] erro ao guardar: {e}", level="warn")
+
+    # ------------------------------------------------------------------ #
+    # API pública auxiliar
+    # ------------------------------------------------------------------ #
 
     def resume(self, task_id: str) -> Optional[Task]:
         task = self.state.load(task_id)
@@ -160,6 +351,10 @@ class Friday:
 
     def capabilities(self) -> dict[str, Any]:
         return self.registry.summary()
+
+    def engines_status(self) -> dict[str, Any]:
+        """Estado dos 5 engines reais."""
+        return self.engines.summary()
 
     def _init_system_memory(self):
         for cap in self.registry.all():

@@ -15,8 +15,11 @@ from .execution import ExecutionEngine
 from .registry import CapabilityRegistry
 from .default_registry import build_default_registry
 from .memory import MemorySystem, MemoryNS
+from .memory_mem0 import Mem0MemorySystem
 from .state import StateEngine
 from .llm_client import GeminiClient
+from .scheduler import FridayScheduler
+from .self_improvement import SelfImprovementEngine
 
 
 class Friday:
@@ -26,11 +29,19 @@ class Friday:
         registry: Optional[CapabilityRegistry] = None,
         use_llm: bool = True,
         llm_client: Optional[GeminiClient] = None,
+        use_mem0: bool = True,
     ):
         self.work_dir = Path(work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-        self.memory = MemorySystem(self.work_dir / "memory.db")
+        # Memory: usar Mem0 (semântico) se disponível, senão SQLite simples
+        if use_mem0:
+            self.memory = Mem0MemorySystem(self.work_dir / "memory.db")
+            self._log(f"Memory: {'Mem0 (semântico)' if self.memory.is_mem0_active() else 'SQLite (fallback)'}")
+        else:
+            self.memory = MemorySystem(self.work_dir / "memory.db")
+            self._log("Memory: SQLite (use_mem0=False)")
+
         self.state = StateEngine(str(self.work_dir / "state.db"))
         self.registry = registry or build_default_registry(
             output_dir=self.work_dir / "outputs"
@@ -50,6 +61,8 @@ class Friday:
             registry=self.registry, memory=self.memory,
             state=self.state, logger=self._log,
         )
+        self.scheduler = FridayScheduler(friday_instance=self)
+        self.self_improvement = SelfImprovementEngine(memory=self.memory, logger=self._log)
         self._init_system_memory()
 
     def run(self, raw_objective: str, user_id: str = "default") -> Task:
@@ -84,6 +97,17 @@ class Friday:
         self.memory.set(MemoryNS.USER, "last_task_id", task.id, scope=user_id)
 
         task = self.executor.execute(task)
+
+        # Self-Improvement: avaliar tarefa e extrair lições
+        try:
+            evaluation = self.self_improvement.evaluate_task(task)
+            self.state.log_event(task.id, "self_improvement_evaluation", {
+                "score": evaluation.get("score", 0),
+                "failures": len(evaluation.get("failures", [])),
+                "recoveries": len(evaluation.get("recoveries", [])),
+            })
+        except Exception as e:
+            self._log(f"[self-improve] erro na avaliação: {e}", level="warn")
 
         self.memory.set(
             MemoryNS.TASK, task.id, {

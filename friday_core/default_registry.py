@@ -1,31 +1,55 @@
-"""Default Registry — regista todas as capabilities do FRIDAY."""
+"""Default Registry — regista todas as capabilities do FRIDAY (v0.3 REAL)."""
 
 from __future__ import annotations
 from pathlib import Path
 from friday_core.registry import CapabilityRegistry
 from friday_core.types import Capability, CapabilityCategory, RiskLevel
+
+# Capabilities funcionais
 from capabilities.web_search import WebSearchCapability
 from capabilities.document_create import DocumentCreateCapability
+from capabilities.gpt_researcher_capability import GPTResearcherCapability
+
+# Adapters reais
 from capabilities.browser_use_adapter import BrowserUseAdapter
+from capabilities.crewai_real import CrewAICapability
+
+# Adapters para engines externos (ainda stubs em runtime, mas com health check real)
 from capabilities.external_adapters import (
     OWLAdapter, OpenHandsAdapter, GoogleADKAdapter, AutoGenAdapter,
-    CrewAIAdapter, LangGraphAdapter, SmolagentsAdapter, CamelAdapter,
+    LangGraphAdapter, SmolagentsAdapter, CamelAdapter,
     AnthropicCUAAdapter,
 )
+
+# Stubs JIAC
 from capabilities.jiac_stubs import (
     JEVAdapter, AgentReachAdapter, RavenAdapter, PersonalJarvisAdapter,
     NanoMuseAdapter, AndroidEngineAdapter, ComputerEngineAdapter,
 )
 
 
-def build_default_registry(output_dir: str | Path = "outputs") -> CapabilityRegistry:
+def build_default_registry(output_dir: str | Path = "outputs",
+                           use_gpt_researcher: bool = True) -> CapabilityRegistry:
+    """
+    Constrói o registry default do FRIDAY.
+
+    Args:
+        output_dir: onde a capability de documentos escreve ficheiros
+        use_gpt_researcher: se True, usa GPT-Researcher como web_search
+                           (com fallback para DuckDuckGo). Se False, usa só DuckDuckGo.
+    """
     r = CapabilityRegistry()
 
-    # Research
+    # --- Research ---------------------------------------------------------
+    # GPT-Researcher substitui DuckDuckGo quando disponível
+    if use_gpt_researcher:
+        research_cap = GPTResearcherCapability()
+    else:
+        research_cap = WebSearchCapability()
     r.register(Capability(
         name="web_search", category=CapabilityCategory.RESEARCH,
-        description="Pesquisa web via DuckDuckGo (sem API key)",
-        impl=WebSearchCapability(), tags=["search", "duckduckgo", "free"],
+        description=f"Research ({'GPT-Researcher' if use_gpt_researcher else 'DuckDuckGo'})",
+        impl=research_cap, tags=["search", "research"],
     ))
     r.register(Capability(
         name="research_owl", category=CapabilityCategory.RESEARCH,
@@ -33,10 +57,10 @@ def build_default_registry(output_dir: str | Path = "outputs") -> CapabilityRegi
         impl=OWLAdapter(), tags=["deep_research", "owl"],
     ))
 
-    # Browser
+    # --- Browser ----------------------------------------------------------
     r.register(Capability(
         name="browser_use", category=CapabilityCategory.BROWSER,
-        description="Browser Use — agente autónomo de navegador",
+        description="Browser Use — agente autónomo de navegador (REAL)",
         impl=BrowserUseAdapter(), tags=["browser", "automation"],
     ))
     r.register(Capability(
@@ -45,7 +69,7 @@ def build_default_registry(output_dir: str | Path = "outputs") -> CapabilityRegi
         impl=JEVAdapter(), tags=["browser", "jiac", "stub"],
     ))
 
-    # Coding
+    # --- Coding -----------------------------------------------------------
     r.register(Capability(
         name="coding_openhands", category=CapabilityCategory.CODING,
         description="OpenHands — agente de engenharia de software",
@@ -57,21 +81,21 @@ def build_default_registry(output_dir: str | Path = "outputs") -> CapabilityRegi
         impl=SmolagentsAdapter(), tags=["code_agent", "huggingface"],
     ))
 
-    # Business
+    # --- Business ---------------------------------------------------------
     r.register(Capability(
         name="business_prospect", category=CapabilityCategory.BUSINESS,
         description="Agent-Reach — prospecção comercial (stub)",
         impl=AgentReachAdapter(), tags=["sales", "b2b", "stub"],
     ))
 
-    # Android
+    # --- Android ----------------------------------------------------------
     r.register(Capability(
         name="android_action", category=CapabilityCategory.ANDROID,
         description="Android Engine — CUA/ARTEMIS (stub)",
         impl=AndroidEngineAdapter(), tags=["android", "mobile", "stub"],
     ))
 
-    # Computer
+    # --- Computer ---------------------------------------------------------
     r.register(Capability(
         name="computer_action", category=CapabilityCategory.COMPUTER,
         description="Computer Engine — CUA desktop (stub)",
@@ -88,7 +112,7 @@ def build_default_registry(output_dir: str | Path = "outputs") -> CapabilityRegi
         impl=AnthropicCUAAdapter(), tags=["cua", "desktop", "anthropic"],
     ))
 
-    # Documents
+    # --- Documents --------------------------------------------------------
     r.register(Capability(
         name="documents_create", category=CapabilityCategory.DOCUMENTS,
         description="Gera documentos Markdown / JSON / TXT",
@@ -96,7 +120,12 @@ def build_default_registry(output_dir: str | Path = "outputs") -> CapabilityRegi
         tags=["docs", "report"],
     ))
 
-    # Internal
+    # --- Internal (Multi-agent) ------------------------------------------
+    r.register(Capability(
+        name="crewai_crew", category=CapabilityCategory.INTERNAL,
+        description="CrewAI — crew de 3 agentes (Research + Browser + Report) REAL",
+        impl=CrewAICapability(), tags=["multi_agent", "crew", "real"],
+    ))
     r.register(Capability(
         name="workflow_orchestrate", category=CapabilityCategory.INTERNAL,
         description="Raven — orquestração de workflows complexos (stub)",
@@ -116,11 +145,6 @@ def build_default_registry(output_dir: str | Path = "outputs") -> CapabilityRegi
         name="autogen_conversation", category=CapabilityCategory.INTERNAL,
         description="Microsoft AutoGen — multi-agent conversation",
         impl=AutoGenAdapter(), tags=["multi_agent", "microsoft"],
-    ))
-    r.register(Capability(
-        name="crewai_crew", category=CapabilityCategory.INTERNAL,
-        description="CrewAI — role-based multi-agent crews",
-        impl=CrewAIAdapter(), tags=["multi_agent", "role_based"],
     ))
     r.register(Capability(
         name="langgraph_workflow", category=CapabilityCategory.INTERNAL,

@@ -1,0 +1,14 @@
+# Dependencies
+httpx>=0.27.0
+
+# Optional — para activar engines externos:
+# Para Browser Use:  pip install -e engines/browser-use && playwright install chromium
+# Para OWL:          pip install -e engines/owl
+# Para OpenHands:    pip install -e engines/openhands  (requer Docker)
+# Para Google ADK:   pip install -e engines/google-adk
+# Para AutoGen:      pip install -e engines/autogen
+# Para CrewAI:       pip install -e engines/crewai
+# Para LangGraph:    pip install -e engines/langgraph
+# Para smolagents:   pip install -e engines/smolagents
+# Para Camel:        pip install -e engines/camel
+# Para Anthropic CUA: pip install anthropic  (requer Docker para a demo)

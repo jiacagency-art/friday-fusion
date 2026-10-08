@@ -36,7 +36,7 @@ from .state import StateEngine
 from .llm_client import GeminiClient
 from .scheduler import FridayScheduler
 from .self_improvement import SelfImprovementEngine
-from .engines import FridayEngines, get_engines
+from .engines import FridayEngines, get_engines, reset_engines
 
 
 class Friday:
@@ -91,8 +91,8 @@ class Friday:
         self.scheduler = FridayScheduler(friday_instance=self)
         self.self_improvement = SelfImprovementEngine(memory=self.memory, logger=self._log)
 
-        # 5 ENGINES REAIS
-        self.engines = get_engines()
+        # 5 ENGINES REAIS (v0.5: SWE-agent + Hermes + AutoGen + Browser + Letta Memory)
+        self.engines = reset_engines(work_dir=str(self.work_dir))
         engines_summary = self.engines.summary()
         self._log(f"Engines: {engines_summary['available_count']}/{engines_summary['total']} disponíveis")
 
@@ -202,36 +202,30 @@ class Friday:
         return objective
 
     def _consult_mem0(self, objective: str, user_id: str) -> dict[str, Any]:
-        """PASSO 2: consulta Mem0 — o que já sei sobre isto?"""
-        self._log(f"[mem0] a consultar memória para: {objective[:60]}...")
-        mem0_engine = self.engines.mem0
-        if not mem0_engine.health().available:
-            self._log("[mem0] indisponível — usando SQLite fallback")
-            # Fallback: usar MemorySystem SQLite
+        """PASSO 2: consulta Letta Memory — o que já sei sobre isto?"""
+        self._log(f"[letta] a consultar memória para: {objective[:60]}...")
+        letta_engine = self.engines.letta_memory
+        if not letta_engine.health().available:
+            self._log("[letta] indisponível — usando SQLite fallback")
             history = self.memory.list(MemoryNS.TASK)
-            return {"used": False, "reason": "mem0 indisponível",
+            return {"used": False, "reason": "letta indisponível",
                     "sqlite_history_count": len(history)}
 
         try:
-            result = mem0_engine.search(query=objective, user_id=user_id, top_k=5)
+            result = letta_engine.search(query=objective, user_id=user_id, top_k=5)
             if result.get("success"):
                 results = result.get("results", [])
-                # results pode ser dict com "results" ou lista
-                if isinstance(results, dict):
-                    memories_list = results.get("results", [])
-                else:
-                    memories_list = results
-                self._log(f"[mem0] {len(memories_list)} memórias relevantes encontradas")
+                self._log(f"[letta] {len(results)} memórias relevantes encontradas")
                 return {
                     "used": True,
-                    "memories": memories_list[:3],  # top 3
-                    "count": len(memories_list),
+                    "memories": results[:3],
+                    "count": len(results),
                 }
             else:
-                self._log(f"[mem0] erro na pesquisa: {result.get('error', '?')}", level="warn")
+                self._log(f"[letta] erro na pesquisa: {result.get('error', '?')}", level="warn")
                 return {"used": False, "error": result.get("error")}
         except Exception as e:
-            self._log(f"[mem0] excepção: {e}", level="warn")
+            self._log(f"[letta] excepção: {e}", level="warn")
             return {"used": False, "error": str(e)}
 
     def _execute_with_engines(self, task: Task, mem0_context: dict) -> Task:
@@ -284,12 +278,11 @@ class Friday:
         return task
 
     def _save_to_mem0(self, task: Task, user_id: str):
-        """PASSO 8: guardar no Mem0."""
-        mem0_engine = self.engines.mem0
-        if not mem0_engine.health().available:
+        """PASSO 8: guardar no Letta Memory."""
+        letta_engine = self.engines.letta_memory
+        if not letta_engine.health().available:
             return
 
-        # Compilar sumário da tarefa
         summary_parts = [f"Task: {task.objective.raw}", f"Status: {task.status.value}"]
         if task.plan:
             for s in task.plan.steps:
@@ -300,7 +293,7 @@ class Friday:
 
         summary = "\n".join(summary_parts)
         try:
-            mem0_engine.add(
+            letta_engine.add(
                 content=summary,
                 user_id=user_id,
                 metadata={
@@ -309,9 +302,9 @@ class Friday:
                     "timestamp": time.time(),
                 },
             )
-            self._log(f"[mem0] guardado: task {task.id}")
+            self._log(f"[letta] guardado: task {task.id}")
         except Exception as e:
-            self._log(f"[mem0] erro ao guardar: {e}", level="warn")
+            self._log(f"[letta] erro ao guardar: {e}", level="warn")
 
     # ------------------------------------------------------------------ #
     # API pública auxiliar

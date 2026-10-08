@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 import time
 import urllib.parse
+from pathlib import Path
 from typing import Any
 import httpx
 from friday_core.types import (
@@ -22,7 +23,7 @@ _USER_AGENT = (
 class WebSearchCapability(CapabilityImpl):
     name = "web_search"
     category = CapabilityCategory.RESEARCH
-    description = "Pesquisa web via DuckDuckGo (sem API key)"
+    description = "Pesquisa web via DuckDuckGo (sem API key) com fallback para Letta Memory"
 
     def execute(self, inputs: dict[str, Any], ctx: ExecutionContext) -> StepResult:
         query = inputs.get("query") or inputs.get("q")
@@ -31,18 +32,52 @@ class WebSearchCapability(CapabilityImpl):
         max_results = int(inputs.get("max_results", 10))
         started = time.time()
         ctx.logger(f"[web_search] query={query!r} max={max_results}")
+
+        # Tentar DuckDuckGo primeiro
         try:
             results = self._search(query, max_results)
-            return StepResult(
-                success=True, output=results,
-                metadata={"engine": "duckduckgo_html", "query": query,
-                          "result_count": len(results),
-                          "duration_s": round(time.time() - started, 2)},
-                finished_at=time.time(),
-            )
+            if results:
+                return StepResult(
+                    success=True, output=results,
+                    metadata={"engine": "duckduckgo_html", "query": query,
+                              "result_count": len(results),
+                              "duration_s": round(time.time() - started, 2)},
+                    finished_at=time.time(),
+                )
         except Exception as e:
-            ctx.logger(f"[web_search] erro: {e}", level="error")
-            return StepResult(success=False, error=str(e), finished_at=time.time())
+            ctx.logger(f"[web_search] DuckDuckGo falhou: {e}", level="warn")
+
+        # Fallback: consultar Letta Memory (vector search local)
+        ctx.logger("[web_search] fallback para Letta Memory (vector search)", level="warn")
+        try:
+            from friday_core.memory_letta import LettaStyleMemory
+            # Usar o mesmo db path do FRIDAY
+            db_path = str(Path("friday_workspace/letta_memory.db"))
+            mem = LettaStyleMemory(db_path=db_path)
+            search_result = mem.search_archival(query, n_results=max_results)
+            if search_result:
+                # Converter para o mesmo formato que DuckDuckGo devolve
+                results = []
+                for r in search_result:
+                    content = r.get("content", "")
+                    results.append({
+                        "title": content[:80] + ("..." if len(content) > 80 else ""),
+                        "url": "letta://memory",
+                        "snippet": content,
+                    })
+                ctx.logger(f"[web_search] Letta Memory devolveu {len(results)} resultados")
+                return StepResult(
+                    success=True, output=results,
+                    metadata={"engine": "letta_memory_fallback", "query": query,
+                              "result_count": len(results),
+                              "duration_s": round(time.time() - started, 2)},
+                    finished_at=time.time(),
+                )
+        except Exception as e:
+            ctx.logger(f"[web_search] Letta fallback falhou: {e}", level="error")
+
+        return StepResult(success=False, error="timed out (DuckDuckGo) e Letta Memory vazia",
+                          finished_at=time.time())
 
     def verify(self, result: StepResult, inputs: dict[str, Any]) -> VerificationResult:
         checks = []

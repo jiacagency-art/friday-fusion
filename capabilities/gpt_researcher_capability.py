@@ -58,10 +58,16 @@ class GPTResearcherCapability(CapabilityImpl):
         self._checked = True
         try:
             from gpt_researcher import GPTResearcher  # type: ignore
-            # Verificar LLM
-            if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")):
+            # GPT-Researcher precisa de OPENAI_API_KEY (não funciona bem com só Gemini)
+            # Também precisa de TAVILY_API_KEY para retriever
+            has_openai = bool(os.environ.get("OPENAI_API_KEY"))
+            has_tavily = bool(os.environ.get("TAVILY_API_KEY"))
+            if not has_openai:
                 self._available = False
-                self._reason = "Sem LLM API key"
+                self._reason = "GPT-Researcher requer OPENAI_API_KEY (Gemini não suportado directamente)"
+            elif not has_tavily:
+                self._available = False
+                self._reason = "GPT-Researcher requer TAVILY_API_KEY para search"
             else:
                 self._available = True
                 self._reason = ""

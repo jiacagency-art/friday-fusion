@@ -1,312 +1,204 @@
-# JIAC FRIDAY — friday-fusion
+# JIAC FRIDAY — friday-fusion v1.0
 
 > **Tu defines o objetivo. O FRIDAY descobre como chegar lá, executa, observa, verifica, corrige e continua até terminar.**
+> *Autonomous Intelligence. Real Execution. Continuous Evolution.*
+> Um projeto da **JIAC AGENCY** — "Diminuir o custo, aumentar o lucro."
 
-`friday-fusion` é o laboratório inicial do JIAC FRIDAY — onde se transformam Browser Use, JEV, OWL, OpenHands, Agent-Reach, Raven, Google ADK, AutoGen, CrewAI, LangGraph, smolagents, Camel e outras tecnologias num **único sistema operacional de agentes**.
+`friday-fusion` é o **sistema operacional de agentes de IA** do JIAC FRIDAY — a implementação da visão completa: um núcleo central que junta Browser Use, JEV (Fast Execution), OWL, OpenHands/SWE-agent, AutoGen, CrewAI, Agent-Reach, GPT-Researcher e outros num **sistema único**, com autonomia local (funciona **sem nenhuma API key obrigatória**) e expansão por repositórios GitHub.
 
 ---
 
-## Estado actual (v0.2)
+## O que há de novo na v1.0
 
-✅ **Funciona end-to-end** com capabilities gratuitas (sem chaves de API):
-- Web Search via DuckDuckGo
-- Document generation (Markdown / JSON / TXT)
-- Memory System (SQLite, 4 namespaces)
-- State Engine (SQLite, retomável)
-- Universal Router baseado em regras
-- Execution Engine com retry + verify
-- Recovery Engine com backoff
+| Sistema | Estado | Descrição |
+|---|---|---|
+| ⚡ **Fast Execution Fabric (JEV)** | ✅ REAL | Steps independentes executam **em paralelo** (ondas topológicas), cache de respostas, timeout por step, métricas p50/p95 |
+| 🛡 **Permission System** | ✅ REAL | READ → ANALYZE → PREPARE → EXECUTE → CRITICAL; audit trail; aprovação humana obrigatória para acções críticas (email real, etc.) |
+| 🔄 **Recovery Engine** | ✅ REAL | Estratégias por tipo de erro (rede → backoff, rate-limit → espera, missing cap → alternativa, quota → degrada para regras) |
+| 🎬 **Video Editor Engine** | ✅ REAL | Editor de vídeo agentivo com ffmpeg: corta, vertical 9:16 (TikTok/Reels), horizontal 16:9, legendas PT, destaque com círculo animado, storyboard, GIF, extrair áudio |
+| ☀️ **Briefing proativo** | ✅ REAL | Clima (wttr.in) + notícias (Google News RSS) + novidades de IA + agenda + tarefas prioritárias + resumo executivo — **sem API keys** |
+| 📊 **Data Engine** | ✅ REAL | Análise de CSV/JSON: perfil por coluna, estatísticas, correlações de Pearson, group-by, relatório Markdown |
+| 💼 **Agent-Reach real** | ✅ REAL | Prospecção comercial: pesquisa empresas, detecta oportunidades, exporta **lista CRM em CSV** + MD + JSON |
+| ✉️ **Communication Engine** | ✅ REAL | Email SMTP real (com aprovação) ou rascunho .eml honesto quando não configurado — **nunca finge que enviou** |
+| 🤖 **Agent Factory** | ✅ REAL | Cria agentes especializados on-demand: researcher, prospector, writer, analyst, engineer, video_editor, marketer |
+| 🔎 **Capability Discovery** | ✅ REAL | Clona repositórios GitHub, inspeciona (linguagem, licença, scripts) e registra como capability TOOL (inventory, search_code, run_script com permissão) |
+| 🖥 **Dashboard web** | ✅ REAL | Interface unificada de cartões/alertas/contexto em `http://localhost:8500` — **zero dependências** (stdlib) |
+| 🧠 Memory | ✅ REAL | Mem0 (semântico) se instalado, senão SQLite 4 namespaces |
+| 📅 Scheduler 24/7 | ✅ REAL | Jobs recorrentes (APScheduler): briefing de manhã, leads ao fim do dia, análise semanal |
+| 📈 Self-Improvement | ✅ REAL | Avalia tarefas, regista lições, detecta gaps de capabilities |
 
-✅ **LLM Router com Gemini** (com fallback gracioso para regras):
-- `GeminiClient` via endpoint OpenAI-compatible do Google
-- `LLMObjectiveParser` — NL→Objective via Gemini
-- `LLMRouter` — Objective→Plan via Gemini
-- Auto-fallback se quota excedida, geo-block, ou sem chave
+**31 capabilities registadas** (13 reais v1.0 + 10 adapters externos + stubs legados) + **7 agentes especializados** criados automaticamente.
 
-🔌 **10 engines externos suportados** (em `engines/` — clonar separadamente):
+---
+
+## Instalação (terminal)
+
+```bash
+# 1. Clonar
+git clone https://github.com/jiacagency-art/friday-fusion.git
+cd friday-fusion
+
+# 2. Instalar dependências (só 1: httpx)
+pip install -r requirements.txt
+
+# 3. Testar (sem nenhuma API key!)
+python tests/test_v1.py
+
+# 4. Demo completo (gera briefing, edita vídeo, analisa dados, faz prospecção, escreve email)
+python examples/demo_v1_completo.py
+
+# 5. Abrir o Dashboard
+python -m friday_core.dashboard --workdir friday_workspace
+# → http://127.0.0.1:8500
+```
+
+Requisitos: **Python 3.10+** e (para o editor de vídeo) **ffmpeg**:
+```bash
+sudo apt install ffmpeg      # Linux/WSL
+brew install ffmpeg          # macOS
+```
+
+Chaves de API são **opcionais** — sem elas o FRIDAY usa o planner de regras e as fontes públicas (DuckDuckGo, Google News RSS, wttr.in). Com `GEMINI_API_KEY` ganha raciocínio LLM no parse e no routing.
+
+---
+
+## Arquitectura v1.0
+
+```
+                  ┌─────────────────────────────┐
+   Utilizador ──► │      FRIDAY (Orchestrator)  │──► Dashboard (cartões/alertas)
+                  └──────────┬──────────────────┘
+                             │
+        ┌────────────────────┼──────────────────────┐
+        ▼                    ▼                      ▼
+  ObjectiveParser       Universal Router      ⚡ FastExecutor (JEV)
+  (LLM ou regras)       (LLM ou regras)       ondas paralelas + cache
+        │                    │                      │
+        └────────────────────┼──────────────────────┘
+                             ▼
+                  ┌─────────────────────┐
+                  │ Capability Registry │ 31 capabilities
+                  └──────────┬──────────┘
+     ┌────────┬────────┬─────┼─────┬────────┬─────────┐
+     ▼        ▼        ▼     ▼     ▼        ▼         ▼
+  web_search video   data  prospect briefing email  browser/coding/
+  (DDG/GPT-R) editor analyze (CRM)  (clima+ (SMTP/    agentes (7)
+                           Agent-Reach notícias) draft)
+                             │
+        ┌────────────────────┼──────────────┐
+        ▼                    ▼              ▼
+  🛡 Permission System   🔄 Recovery    📈 Self-Improvement
+  (READ→CRITICAL+audit)  Engine         + Memory + State
+```
+
+### Exemplo — como o FRIDAY executa uma missão de vídeo
+
+```
+TU:    "corta o video.mp4 em 8 segundos e cria versão vertical para TikTok"
+FRIDAY: intent=video_edit
+        plano: storyboard ∥ vertical (onda 1, PARALELO) → corte (onda 2)
+        permissions: video_editor = prepare ✓
+        ffmpeg: storyboard_video.jpg + cut_0_8_video.mp4 + vertical_video.mp4
+        verify: ficheiros existem e têm conteúdo ✓
+        → 3 artefactos prontos em outputs/video/
+```
+
+---
+
+## Usar programaticamente
+
+```python
+from friday_core import Friday
+
+friday = Friday(work_dir="friday_workspace")
+
+# Missão completa (briefing, vídeo, dados, prospecção, email...)
+task = friday.run("prepara o briefing de hoje")
+task = friday.run("corta o video.mp4 em 15s e cria versão vertical para TikTok")
+task = friday.run("encontra empresas angolanas que precisem de automação e organiza no CRM")
+
+# Briefing proactivo + alertas
+print(friday.daily_briefing(city="Luanda"))
+print(friday.alerts())
+
+# Agentes especializados
+friday.create_agent("prospector")
+
+# GitHub como fonte de capacidades
+friday.discover_repo("https://github.com/browser-use/browser-use")
+
+# Estado e retoma
+print(friday.status(task.id))
+friday.resume(task.id)
+
+# Dashboard
+friday.serve(port=8500)
+```
+
+### Autonomia 24/7 (scheduler)
+
+```python
+friday.scheduler.setup_default_schedule()
+# 08:00 — briefing diário · 17:00 — verificação de leads · domingo — análise semanal
+```
+
+---
+
+## Segurança e permissões (visão §29)
+
+| Nível | Significado | Exemplo |
+|---|---|---|
+| `read` | ler/pesquisar informação pública | briefing, clima, notícias |
+| `analyze` | processar dados localmente | data_analyze, prospecção |
+| `prepare` | criar artefactos locais | documentos, edição de vídeo, rascunhos |
+| `execute` | executar acções reais | automações, scripts de repos descobertos |
+| `critical` | contactar pessoas / comprometer a JIAC | **enviar email de verdade** |
+
+- Toda decisão fica em `workspace/permissions_audit.jsonl`.
+- Acções CRITICAL exigem aprovação humana (callback ou botão **Aprovar/Negar no Dashboard**).
+- Sem aprovação → o step falha honestamente; o email é guardado como rascunho `.eml` (nunca finge que enviou).
+
+---
+
+## Engines externos suportados (opcionais)
 
 | Engine | Source | Como activar |
 |--------|--------|--------------|
 | browser-use | github.com/browser-use/browser-use | `pip install -e engines/browser-use` + LLM + Playwright |
 | owl | github.com/camel-ai/owl | `pip install -e engines/owl` + LLM |
-| openhands | github.com/All-Hands-AI/OpenHands | `pip install -e engines/openhands` + Docker |
+| openhands / SWE-agent | github.com/SWE-agent/SWE-agent | `pip install sweagent` |
 | google-adk | github.com/google/adk-python | `pip install -e engines/google-adk` + GEMINI_API_KEY |
 | autogen | github.com/microsoft/autogen | `pip install -e engines/autogen` + LLM |
 | crewai | github.com/crewAIInc/crewAI | `pip install -e engines/crewai` + LLM |
 | langgraph | github.com/langchain-ai/langgraph | `pip install -e engines/langgraph` + LLM |
 | smolagents | github.com/huggingface/smolagents | `pip install -e engines/smolagents` + LLM |
 | camel | github.com/camel-ai/camel | `pip install -e engines/camel` + LLM |
-| anthropic-quickstarts | github.com/anthropics/anthropic-quickstarts | `pip install anthropic` + ANTHROPIC_API_KEY + Docker |
+| gpt-researcher | github.com/assafelovic/gpt-researcher | `pip install gpt-researcher` |
+| mem0 | github.com/mem0ai/mem0 | `pip install mem0ai` |
+| apscheduler | — | `pip install apscheduler` (24/7) |
 
-🚧 **19 capabilities registadas** (2 funcionais + 10 adapters externos + 7 stubs JIAC)
-
----
-
-## Estrutura
-
-```
-friday-fusion/
-├── friday_core/                # Núcleo do FRIDAY
-│   ├── types.py                # Objective, Plan, Step, Task, Capability, ...
-│   ├── objective_parser.py     # NL → Objective (regras)
-│   ├── llm_objective_parser.py # NL → Objective (Gemini + fallback)
-│   ├── router.py               # Universal Router: Objective → Plan (regras)
-│   ├── llm_router.py           # LLM Router: Objective → Plan (Gemini + fallback)
-│   ├── registry.py             # Capability Registry central
-│   ├── default_registry.py     # Regista todas as 19 capabilities
-│   ├── execution.py            # Execution Engine (verify + recover + retry)
-│   ├── memory.py               # Memory System (USER/COMPANY/TASK/SYSTEM)
-│   ├── state.py                # State Engine (SQLite, retomável)
-│   ├── llm_client.py           # GeminiClient
-│   └── orchestrator.py         # Friday — ponto de entrada único
-│
-├── capabilities/               # Implementações concretas
-│   ├── web_search.py           # ✅ DuckDuckGo (sem API key)
-│   ├── document_create.py      # ✅ Markdown/JSON/TXT
-│   ├── browser_use_adapter.py  # Adapter p/ Browser Use
-│   ├── external_adapters.py    # Adapters p/ OWL, OpenHands, ADK, AutoGen, etc.
-│   └── jiac_stubs.py           # Stubs JEV/Agent-Reach/Raven/PersonalJarvis/nanoMuse/...
-│
-├── engines/                    # Engines externos (clonar separadamente)
-│   └── README.md               # Instruções de clonagem
-│
-├── examples/
-│   ├── demo_search_angola.py   # Demo que funciona sem API keys
-│   └── demo_llm_router.py      # Demo com LLM router (mostra fallback)
-│
-├── tests/
-│   └── (a preencher)
-│
-├── .env.example                # Template de configuração
-├── .gitignore
-├── requirements.txt
-└── README.md
-```
+Todos **opcionais**: o FRIDAY detecta o que está instalado e degrada com graciosidade.
 
 ---
 
-## Quickstart
-
-### Pré-requisitos
-- Python 3.10+
-- `httpx` (`pip install httpx`)
-
-### Instalação
-
-```bash
-git clone https://github.com/jiacagency-art/friday-fusion.git
-cd friday-fusion
-pip install -r requirements.txt
-```
-
-### Configurar LLM (opcional)
-
-```bash
-cp .env.example .env
-# Editar .env e preencher GEMINI_API_KEY=...
-```
-
-Sem chave: o FRIDAY usa planner de regras (funciona na mesma).
-Com chave: o FRIDAY usa Gemini para parse + routing.
-
-### Correr os demos
-
-```bash
-# Demo básico (pesquisa + relatório)
-python examples/demo_search_angola.py
-
-# Demo com LLM router (mostra fallback a funcionar)
-python examples/demo_llm_router.py
-```
-
-### Usar o FRIDAY programaticamente
-
-```python
-from friday_core import Friday
-
-friday = Friday(work_dir="friday_workspace")
-task = friday.run("pesquisa empresas de IA em Angola e prepara lista comercial")
-
-# Ver estado
-print(friday.status(task.id))
-
-# Retomar tarefa interrompida
-friday.resume(task.id)
-
-# Listar capabilities
-print(friday.capabilities())
-```
-
----
-
-## Arquitectura
+## Estado dos testes (sem API keys)
 
 ```
-                  ┌─────────────────┐
-   Utilizador ──► │     FRIDAY      │
-                  │  (Orchestrator) │
-                  └────────┬────────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-         ObjectiveParser  Router       ExecutionEngine
-         (LLM ou regras)  (LLM ou     (Plan → Results)
-                          regras)        │
-                                  ┌───────┴───────┐
-                                  ▼               ▼
-                              CapabilityRegistry  Memory+State
-                              (19 caps)           (SQLite)
-                                  │
-        ┌──────┬──────┬─────┬─────┼─────┬───────┬───────┐
-        ▼      ▼      ▼     ▼     ▼     ▼       ▼       ▼
-     web_srch docs  browser owl  openhands adk  autogen crewai
-     (✅DDG) (✅MD)  (adp)  (adp) (adp)   (adp) (adp)   (adp)
-
-     + langgraph, smolagents, camel, anthropic_cua
-     + 7 stubs JIAC (JEV, Agent-Reach, Raven, PersonalJarvis, nanoMuse, Android, Computer)
+32/32 testes de fumo passaram:
+  parser (7) · router (2) · permissions (4) · recovery (4) · JEV (2)
+  FRIDAY e2e dados (4) · agentes (2) · video ffmpeg (1) · email honesto (3)
+  proactivity (1) · dashboard (2)
+5/5 missões do demo completo:
+  ✓ briefing 8.2s · ✓ vídeo 10.4s · ✓ dados 0.0s · ✓ prospecção 13.3s · ✓ email 0.0s
+JEV: 1ª execução 5.0s (2 ondas paralelas) · 2ª execução 0.0s (cache)
 ```
-
----
-
-## Capacidades registadas (19)
-
-### Funcionais (✅)
-| Nome                  | Categoria   | Descrição                                |
-|-----------------------|-------------|------------------------------------------|
-| `web_search`          | research    | DuckDuckGo, sem API key                  |
-| `documents_create`    | documents   | Markdown / JSON / TXT                    |
-
-### Adapters para engines externos (🔌)
-| Nome                       | Engine              | Como activar                         |
-|----------------------------|---------------------|--------------------------------------|
-| `browser_use`              | browser-use         | `pip install -e engines/browser-use` + LLM |
-| `research_owl`             | owl                 | `pip install -e engines/owl` + LLM   |
-| `coding_openhands`         | openhands           | `pip install -e engines/openhands` + Docker |
-| `adk_agent`                | google-adk          | `pip install -e engines/google-adk` + GEMINI_API_KEY |
-| `autogen_conversation`     | autogen             | `pip install -e engines/autogen` + LLM |
-| `crewai_crew`              | crewai              | `pip install -e engines/crewai` + LLM |
-| `langgraph_workflow`       | langgraph           | `pip install -e engines/langgraph` + LLM |
-| `smolagents_code`          | smolagents          | `pip install -e engines/smolagents` + LLM |
-| `camel_roleplay`           | camel               | `pip install -e engines/camel` + LLM |
-| `computer_cua_anthropic`   | anthropic-quickstarts | `pip install anthropic` + ANTHROPIC_API_KEY + Docker |
-
-### Stubs JIAC (🚧)
-| Nome                       | Projecto JIAC        |
-|----------------------------|----------------------|
-| `browser_jev`              | JEV                  |
-| `business_prospect`        | Agent-Reach          |
-| `workflow_orchestrate`     | Raven                |
-| `personal_context`         | PersonalJarvis       |
-| `personal_assistant`       | nanoMuse (GPL-3.0 ⚠️) |
-| `android_action`           | Android Engine (CUA/ARTEMIS) |
-| `computer_action`          | Computer Engine (CUA) |
-
----
-
-## LLM Router (Gemini)
-
-O FRIDAY usa Gemini para:
-1. **Objective parsing**: extrair intent + entities de pedidos em linguagem natural
-2. **Routing**: decidir que capabilities usar e em que ordem
-
-### Funcionamento
-
-- Se `GEMINI_API_KEY` está configurada → usa LLM
-- Se Gemini falha (quota, geo-block, rede) → **fallback automático** para regras
-- O fallback é transparente — o utilizador não precisa de fazer nada
-
-### Configuração
-
-```bash
-# .env
-GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-3.1-pro-preview
-```
-
----
-
-## Clonar engines externos
-
-Os engines em `engines/` são clonados separadamente para evitar aumentar o repositório. Para clonar todos:
-
-```bash
-cd engines
-git clone --depth 1 https://github.com/browser-use/browser-use.git
-git clone --depth 1 https://github.com/camel-ai/owl.git
-git clone --depth 1 https://github.com/All-Hands-AI/OpenHands.git
-git clone --depth 1 https://github.com/google/adk-python.git google-adk
-git clone --depth 1 https://github.com/microsoft/autogen.git
-git clone --depth 1 https://github.com/crewAIInc/crewAI.git crewai
-git clone --depth 1 https://github.com/langchain-ai/langgraph.git
-git clone --depth 1 https://github.com/huggingface/smolagents.git
-git clone --depth 1 https://github.com/camel-ai/camel.git
-git clone --depth 1 https://github.com/anthropics/anthropic-quickstarts.git
-```
-
----
-
-## Substituir os stubs JIAC
-
-Cada stub em `capabilities/jiac_stubs.py` herda de `_BaseStub` e está marcado `health=False`. Para activar:
-
-1. Criar `capabilities/<nome>_real.py` com implementação que herda de `CapabilityImpl`
-2. Substituir a entrada correspondente em `friday_core/default_registry.py`
-3. Garantir que `health()` retorna `True` quando pronto
-
----
-
-## Roadmap
-
-### v0.1 (✅)
-- Core: Objective Parser, Router, Executor, Memory, State
-- 2 capabilities funcionais (web_search, documents_create)
-- 3 adapters (Browser Use, OWL, OpenHands)
-- 7 stubs JIAC
-
-### v0.2 (✅)
-- LLM Router com Gemini + fallback gracioso
-- +7 engines externos suportados (Google ADK, AutoGen, CrewAI, LangGraph, smolagents, Camel, Anthropic CUA)
-- 19 capabilities registadas no total
-
-### v0.3 (próximo)
-- [ ] Activar Browser Use com Playwright (LLM-driven browser automation)
-- [ ] Activar Google ADK (agentes Gemini com tools)
-- [ ] Verification Engine mais rico (schema validation por capability)
-- [ ] Recovery Engine com estratégias diferentes por tipo de erro
-- [ ] Permission System (READ/ANALYZE/PREPARE/EXECUTE/CRITICAL)
-
-### v0.4
-- [ ] Scheduler (cron-like) para tarefas recorrentes
-- [ ] Self-Improvement loop (detectar capability gaps)
-- [ ] Learning from failures (memória de erros + recovery strategies)
-- [ ] Multi-tenant isolation real
-
-### v1.0
-- [ ] Website Factory end-to-end
-- [ ] Software Factory end-to-end
-- [ ] Autonomia longa (8h+ sem intervenção)
-- [ ] nanoMuse reescrito sem GPL (para versão proprietária)
-- [ ] JEV, Agent-Reach, Raven, PersonalJarvis reais
 
 ---
 
 ## Licenças
 
 - **friday-fusion código próprio**: MIT (JIAC AGENCY)
-- **browser-use**: MIT
-- **owl**: Apache-2.0
-- **openhands**: MIT
-- **google-adk**: Apache-2.0
-- **autogen**: MIT
-- **crewai**: MIT
-- **langgraph**: MIT
-- **smolagents**: Apache-2.0
-- **camel**: Apache-2.0
-- **anthropic-quickstarts**: MIT
-- **nanoMuse** (não incluído, stub apenas): GPL-3.0 ⚠️
-  - Não pode ser misturado em versão proprietária sem cumprir GPL
-  - Para produto comercial: reimplementar as capacidades sem usar o código GPL
-
----
+- engines externos: MIT / Apache-2.0 (ver `engines/`)
+- nanoMuse: GPL-3.0 ⚠️ (stub apenas — não misturar em versão proprietária)
 
 **JIAC AGENCY** — Tu dás o objetivo. O FRIDAY transforma o objetivo em trabalho.

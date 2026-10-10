@@ -7,6 +7,28 @@ from .types import Objective
 
 
 _INTENT_PATTERNS: list[tuple[str, re.Pattern, dict[str, Any]]] = [
+    # v1.0 intents — ordem importa: mais específicos primeiro
+    ("video_edit", re.compile(
+        r"(v[íi]deo|video|clip|corta?\s+(?:o|a)?\s*v[íi]deo|legend[ae][a-z]*|"
+        r"tiktok|reels?|storyboard|vertical|gif|destaca?\b.*v[íi]deo)", re.IGNORECASE),
+     {"default_capability": "video_editor"}),
+    ("briefing", re.compile(
+        r"(briefing|bom dia|resumo do dia|o que tenho hoje|me actualiza|"
+        r"me atualiza|not[íi]cias de hoje|clima|tempo em)", re.IGNORECASE),
+     {"default_capability": "briefing"}),
+    ("data_analyze", re.compile(
+        r"(analis[ae][a-z]*\s+(?:o\s+)?(?:csv|dados|ficheiro|excel)|estat[íi]stica|"
+        r"correla|group ?by|agrupa?\b)", re.IGNORECASE),
+     {"default_capability": "data_analyze"}),
+    ("prospect", re.compile(
+        r"(prospec[çc][ãa]o|leads?|clientes?\s+potenciais|empresas\s+que\s+podam?|"
+        r"empresas\s+que\s+possam|crm|lista\s+comercial|oportunidades\s+comerciais|"
+        r"encontra\s+empresas)", re.IGNORECASE),
+     {"default_capability": "prospect_real"}),
+    ("email", re.compile(
+        r"(envi[ae][a-z]*\s+(?:um\s+)?(?:email|e-mail|mail)|escrev[ae][a-z]*\s+email|"
+        r"manda?\s+(?:um\s+)?email)", re.IGNORECASE),
+     {"default_capability": "email_send"}),
     ("research", re.compile(
         r"(pesquis[ae][a-z]*|investig[ae][a-z]*|estud[ae][a-z]*|"
         r"analis[ae][a-z]*|descobr[ae][a-z]*|encontr[ae][a-z]*|"
@@ -68,6 +90,30 @@ def parse(raw: str, user_id: str = "default") -> Objective:
         entities["query"] = query
 
     entities["default_capability"] = intent_meta["default_capability"]
+
+    # v1.0: texto completo disponível para planners especializados
+    entities["raw"] = raw.strip()
+
+    # v1.0: ficheiro de vídeo/dados mencionado (ex.: "video.mp4", "dados.csv")
+    file_m = re.search(r"([A-Za-z0-9_\-.]+\.(?:mp4|mov|avi|mkv|webm|gif|csv|tsv|json))",
+                       raw, re.IGNORECASE)
+    if file_m:
+        fname = file_m.group(1).strip()
+        if fname.lower().endswith((".csv", ".tsv", ".json")):
+            entities.setdefault("path", fname)
+        else:
+            entities.setdefault("source", fname)
+
+    # v1.0: cidade para briefing/clima
+    city_m = re.search(r"(?:clima|tempo|briefing)\s+(?:em|de|para)\s+([A-ZÁÂÃÉÊÍÓÔÕÚÇ][\wáâãéêíóôõúç]+)",
+                       raw, re.IGNORECASE)
+    if city_m:
+        entities["city"] = city_m.group(1).title()
+
+    # v1.0: destinatário de email
+    email_m = re.search(r"([\w.+-]+@[\w-]+\.[\w.-]+)", raw)
+    if email_m:
+        entities["to"] = email_m.group(1)
 
     return Objective(
         raw=raw, normalized=normalized, intent=intent,

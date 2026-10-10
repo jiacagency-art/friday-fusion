@@ -38,6 +38,15 @@ from .scheduler import FridayScheduler
 from .self_improvement import SelfImprovementEngine
 from .engines import FridayEngines, get_engines, reset_engines
 
+# v1.0 — Permission, Recovery, Fast Execution (JEV), Proactivity,
+#        Agent Factory, Capability Discovery, Briefing
+from .permissions import PermissionSystem
+from .recovery import RecoveryEngine
+from .fast_exec import FastExecutor
+from .proactivity import ProactivityEngine
+from .agent_factory import AgentFactory
+from .capability_discovery import CapabilityDiscovery
+
 
 class Friday:
     """
@@ -57,7 +66,7 @@ class Friday:
         llm_client: Optional[GeminiClient] = None,
         use_mem0: bool = True,
     ):
-        self.work_dir = Path(work_dir)
+        self.work_dir = Path(work_dir).resolve()   # absoluto: verify de artefactos funciona sempre
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
         # Memória: usar Mem0 (semântico) se disponível, senão SQLite
@@ -84,12 +93,49 @@ class Friday:
             self.router = UniversalRouter(self.registry)
             self._log("Router: regras (sem LLM configurado)")
 
-        self.executor = ExecutionEngine(
+        # v1.0 — PERMISSION SYSTEM (visão §29)
+        self.permissions = PermissionSystem(work_dir=str(self.work_dir))
+        self.permissions.approval_callback = getattr(self, "_approval_hook", None)
+
+        # v1.0 — RECOVERY ENGINE por tipo de erro (visão §21)
+        self.recovery_engine = RecoveryEngine(registry=self.registry, logger=self._log)
+
+        # v1.0 — FAST EXECUTION FABRIC (JEV speed) — executor principal
+        self.executor = FastExecutor(
+            registry=self.registry, memory=self.memory, state=self.state,
+            logger=self._log, max_workers=4, step_timeout=180.0,
+            permission_check=self._perm_check, recovery_engine=self.recovery_engine,
+        )
+        # executor legado mantido para compat/resume
+        self.legacy_executor = ExecutionEngine(
             registry=self.registry, memory=self.memory,
             state=self.state, logger=self._log,
         )
+
         self.scheduler = FridayScheduler(friday_instance=self)
         self.self_improvement = SelfImprovementEngine(memory=self.memory, logger=self._log)
+
+        # v1.0 — PROACTIVITY ENGINE (briefing + alertas sem serem pedidos)
+        from capabilities.briefing import BriefingCapability  # lazy (anti-circular)
+        self.proactivity = ProactivityEngine(
+            work_dir=str(self.work_dir), state=self.state,
+            registry=self.registry, scheduler=self.scheduler,
+            briefing_impl=BriefingCapability(output_dir=self.work_dir / "outputs"),
+            logger=self._log,
+        )
+
+        # v1.0 — AGENT FACTORY (agentes especializados on-demand)
+        self.agent_factory = AgentFactory(self.registry,
+                                          llm_client=self.llm_client if self.use_llm else None,
+                                          logger=self._log)
+        self.agent_factory.create_all_defaults()
+
+        # v1.0 — CAPABILITY DISCOVERY (GitHub como fonte de capacidades)
+        self.discovery = CapabilityDiscovery(self.registry, work_dir=str(self.work_dir),
+                                             permissions=self.permissions,
+                                             logger=self._log)
+
+        self.started_at = time.time()
 
         # 5 ENGINES REAIS (v0.5: SWE-agent + Hermes + AutoGen + Browser + Letta Memory)
         self.engines = reset_engines(work_dir=str(self.work_dir))
@@ -273,8 +319,19 @@ class Friday:
                     self.state.save(task)
                     return task
 
-        # Execução normal via ExecutionEngine
-        task = self.executor.execute(task)
+        # Execução normal via FastExecutor (JEV speed) com fallback legado
+        try:
+            task = self.executor.execute(task)
+        except Exception as e:
+            self._log(f"[fast] executor falhou ({e}) — fallback legado", level="warn")
+            task = self.legacy_executor.execute(task)
+
+        # v1.0 — PROACTIVITY pós-missão: alertas automáticos
+        try:
+            self.proactivity.check()
+        except Exception as e:
+            self._log(f"[proactive] check falhou: {e}", level="warn")
+
         return task
 
     def _save_to_mem0(self, task: Task, user_id: str):
@@ -309,6 +366,44 @@ class Friday:
     # ------------------------------------------------------------------ #
     # API pública auxiliar
     # ------------------------------------------------------------------ #
+
+    # ---- v1.0: permission hook usado pelo FastExecutor ----
+    def _perm_check(self, action_level: str, capability: str):
+        return self.permissions.check(action_level, capability,
+                                      requester="fast_executor")
+
+    # ---- v1.0: briefing proactivo ----
+    def daily_briefing(self, city: str = "Luanda", refresh: bool = False) -> dict[str, Any]:
+        """Briefing do dia: clima + notícias + IA + agenda + tarefas + resumo."""
+        return self.proactivity.daily_briefing(city=city, refresh=refresh)
+
+    def alerts(self, limit: int = 30) -> list[dict[str, Any]]:
+        """Alertas proactivos gerados pelo FRIDAY."""
+        return self.proactivity.list_alerts(limit)
+
+    def proactive_check(self) -> list[dict[str, Any]]:
+        """Corre verificação proactiva (tarefas falhadas, gaps, briefing)."""
+        return self.proactivity.check(force=True)
+
+    # ---- v1.0: agentes especializados ----
+    def create_agent(self, role: str) -> Optional[str]:
+        """Cria e regista um agente especializado (researcher, prospector...)."""
+        return self.agent_factory.create(role)
+
+    def available_agent_roles(self) -> list[dict[str, str]]:
+        return self.agent_factory.list_available_roles()
+
+    # ---- v1.0: GitHub como fonte de capacidades ----
+    def discover_repo(self, repo_url: str) -> dict[str, Any]:
+        """Descobre um repo GitHub e registra-o como capability TOOL."""
+        return self.discovery.discover(repo_url)
+
+    # ---- v1.0: dashboard web ----
+    def serve(self, host: str = "127.0.0.1", port: int = 8500):
+        """Lança o Dashboard do FRIDAY (interface de cartões/alertas)."""
+        from .dashboard import DashboardServer
+        server = DashboardServer(self, host=host, port=port)
+        server.serve_forever()
 
     def resume(self, task_id: str) -> Optional[Task]:
         task = self.state.load(task_id)

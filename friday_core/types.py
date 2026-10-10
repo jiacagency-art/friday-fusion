@@ -41,6 +41,11 @@ class CapabilityCategory(str, Enum):
     COMPUTER = "computer"
     DOCUMENTS = "documents"
     INTERNAL = "internal"
+    VIDEO = "video"                # v1.0 — editor de vídeo agentivo
+    COMMUNICATION = "communication"  # v1.0 — email/mensagens
+    DATA = "data"                  # v1.0 — análise de dados
+    AGENT = "agent"                # v1.0 — agentes especializados (Agent Factory)
+    TOOL = "tool"                  # v1.0 — ferramentas descobertas (Capability Discovery)
 
 
 @dataclass
@@ -138,6 +143,15 @@ class CapabilityImpl:
 
     def execute(self, inputs: dict[str, Any], ctx: "ExecutionContext") -> StepResult:
         raise NotImplementedError
+
+    def action_level(self, inputs: dict[str, Any]) -> str:
+        """
+        Nível de permissão desta execução concreta (visão §29):
+        read | analyze | prepare | execute | critical.
+        Por omissão: execute (conservador). Capabilities podem refinar
+        por-input (ex.: email em modo rascunho = prepare, a enviar = critical).
+        """
+        return "execute"
 
     def verify(self, result: StepResult, inputs: dict[str, Any]) -> VerificationResult:
         return VerificationResult(

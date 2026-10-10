@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JIAC FRIDAY — Dashboard</title>
+<style>
+:root{
+  --bg:#0b0e14; --card:#131824; --card2:#1a2131; --line:#232c40;
+  --text:#e8ecf4; --muted:#8b96ad; --red:#e74c3c; --gold:#f0b429;
+  --green:#2ecc71; --blue:#5b8def; --purple:#a86ee7;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Roboto,Ubuntu,sans-serif;min-height:100vh}
+.wrap{max-width:1280px;margin:0 auto;padding:24px 20px 60px}
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--red),#8e1b12);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;letter-spacing:.5px;box-shadow:0 4px 18px rgba(231,76,60,.35)}
+.brand h1{font-size:21px;font-weight:800}
+.brand h1 span{color:var(--red)}
+.brand .tag{font-size:11px;color:var(--muted);margin-top:2px}
+.pill{font-size:11px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);color:var(--muted);background:var(--card)}
+.pill b{color:var(--green)}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;grid-column:span 4}
+.card.wide{grid-column:span 8}
+.card.full{grid-column:span 12}
+.card h3{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.dot.off{background:var(--red);box-shadow:0 0 8px var(--red)}
+/* missão */
+.mission-box{display:flex;gap:10px}
+.mission-box input{flex:1;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:13px 15px;color:var(--text);font-size:14px;outline:none}
+.mission-box input:focus{border-color:var(--red)}
+.mission-box button{background:linear-gradient(135deg,var(--red),#b03122);border:none;color:#fff;font-weight:700;padding:13px 24px;border-radius:10px;cursor:pointer;font-size:14px}
+.mission-box button:hover{filter:brightness(1.1)}
+.examples{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
+.examples span{font-size:11.5px;color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:5px 10px;cursor:pointer}
+.examples span:hover{color:var(--text);border-color:var(--red)}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat{background:var(--card2);border-radius:10px;padding:12px}
+.stat .v{font-size:22px;font-weight:800}
+.stat .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-top:3px}
+/* briefing */
+.brief-sec{margin-bottom:12px}
+.brief-sec b{font-size:12px;color:var(--gold);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px}
+.brief-sec ul{list-style:none}
+.brief-sec li{font-size:13px;color:var(--text);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.03);line-height:1.45}
+.brief-sec a{color:var(--blue);text-decoration:none}
+.brief-sec a:hover{text-decoration:underline}
+/* alertas */
+.alert{border-left:3px solid var(--blue);background:var(--card2);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:13px;line-height:1.4}
+.alert.critical{border-color:var(--red)}
+.alert.warning{border-color:var(--gold)}
+.alert .when{color:var(--muted);font-size:10.5px;display:block;margin-top:3px}
+/* tarefas */
+.task{display:flex;justify-content:space-between;align-items:center;background:var(--card2);border-radius:10px;padding:11px 13px;margin-bottom:8px;gap:10px}
+.task .obj{font-size:13px;flex:1;line-height:1.35}
+.task .steps{font-size:11px;color:var(--muted);white-space:nowrap}
+.status{font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.status.completed{background:rgba(46,204,113,.14);color:var(--green)}
+.status.failed{background:rgba(231,76,60,.14);color:var(--red)}
+.status.executing{background:rgba(91,141,239,.14);color:var(--blue)}
+.status.planning,.status.pending,.status.recovering{background:rgba(240,180,41,.14);color:var(--gold)}
+/* caps */
+.caps{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+.cap{background:var(--card2);border-radius:10px;padding:11px 12px;border:1px solid transparent}
+.cap:hover{border-color:var(--line)}
+.cap .n{font-size:13px;font-weight:700}
+.cap .d{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;max-height:2.8em;overflow:hidden}
+.cap .meta{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.chip{font-size:9.5px;padding:2px 7px;border-radius:8px;background:rgba(255,255,255,.05);color:var(--muted)}
+.chip.ok{color:var(--green)}
+.chip.bad{color:var(--red)}
+.chip.crit{color:var(--gold)}
+/* aprovação */
+.approve{display:none;border:1px solid var(--gold);background:rgba(240,180,41,.07);border-radius:12px;padding:14px;margin-bottom:16px}
+.approve.show{display:block}
+.approve p{font-size:13.5px;margin-bottom:10px;line-height:1.45}
+.approve button{border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;margin-right:8px}
+.approve .yes{background:var(--green);color:#06290f}
+.approve .no{background:var(--red);color:#fff}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:14px}
+footer{margin-top:26px;text-align:center;color:var(--muted);font-size:11px}
+@media(max-width:980px){.card,.card.wide{grid-column:span 12}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">JIAC</div>
+      <div>
+        <h1>JIAC <span>FRIDAY</span> — Dashboard</h1>
+        <div class="tag">Tu defines o objetivo. O FRIDAY executa, verifica, corrige e continua.</div>
+      </div>
+    </div>
+    <div class="pill" id="sysPill">a ligar…</div>
+  </header>
+
+  <div class="approve" id="approveBox">
+    <p id="approveMsg">—</p>
+    <button class="yes" onclick="approve(true)">Aprovar</button>
+    <button class="no" onclick="approve(false)">Negar</button>
+  </div>
+
+  <div class="grid">
+    <!-- Missão -->
+    <div class="card full">
+      <h3><span class="dot"></span> Dar uma missão ao FRIDAY</h3>
+      <div class="mission-box">
+        <input id="objective" placeholder="Ex.: FRIDAY, prepara o briefing de hoje" onkeydown="if(event.key==='Enter')runMission()">
+        <button onclick="runMission()">Executar</button>
+      </div>
+      <div class="examples" id="examples"></div>
+    </div>
+
+    <!-- Estado -->
+    <div class="card wide">
+      <h3><span class="dot" id="sysDot"></span> Estado do sistema</h3>
+      <div class="stats">
+        <div class="stat"><div class="v" id="stCaps">—</div><div class="l">Capabilities</div></div>
+        <div class="stat"><div class="v" id="stEng">—</div><div class="l">Engines</div></div>
+        <div class="stat"><div class="v" id="stAgents">—</div><div class="l">Agentes</div></div>
+        <div class="stat"><div class="v" id="stUptime">—</div><div class="l">Uptime</div></div>
+      </div>
+      <div id="fastMetrics" style="margin-top:12px;font-size:12px;color:var(--muted)"></div>
+    </div>
+
+    <!-- Alertas -->
+    <div class="card">
+      <h3><span class="dot"></span> Alertas proactivos</h3>
+      <div id="alerts"><div class="empty">sem alertas</div></div>
+    </div>
+
+    <!-- Briefing -->
+    <div class="card wide">
+      <h3><span class="dot"></span> Briefing proactivo de hoje</h3>
+      <div id="briefing"><div class="empty">a gerar briefing…</div></div>
+    </div>
+
+    <!-- Missões recentes -->
+    <div class="card">
+      <h3><span class="dot"></span> Missões recentes</h3>
+      <div id="tasks"><div class="empty">nenhuma missão ainda</div></div>
+    </div>
+
+    <!-- Capabilities -->
+    <div class="card full">
+      <h3><span class="dot" id="capDot"></span> Capabilities registadas</h3>
+      <div class="caps" id="caps"></div>
+    </div>
+  </div>
+
+  <footer>JIAC AGENCY — “Diminuir o custo, aumentar o lucro.” · FRIDAY v1.0 · Autonomia local, sem APIs obrigatórias</footer>
+</div>
+
+<script>
+const EXAMPLES = [
+  "prepara o briefing de hoje",
+  "encontra empresas angolanas que precisem de automação e organiza no CRM",
+  "corta o video.mp4 em 15 segundos e cria versão vertical para TikTok",
+  "analisa o dados.csv com estatísticas",
+  "pesquisa as 10 maiores empresas de Angola e prepara lista comercial"
+];
+document.getElementById('examples').innerHTML =
+  EXAMPLES.map(e=>`<span onclick="document.getElementById('objective').value='${e}'">${e}</span>`).join('');
+
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  return r.json();
+}
+function esc(s){const d=document.createElement('div');d.textContent=s??'';return d.innerHTML;}
+
+async function refreshStatus(){
+  try{
+    const s = await api('/api/status');
+    document.getElementById('stCaps').textContent = s.capabilities_count;
+    document.getElementById('stEng').textContent =
+      (s.engines && s.engines.available_count ?? '—') + '/' + (s.engines && s.engines.total ?? '—');
+    document.getElementById('stAgents').textContent = (s.agents||[]).length;
+    const up = s.uptime_s||0;
+    document.getElementById('stUptime').textContent =
+      up<90 ? Math.round(up)+'s' : Math.floor(up/60)+'m';
+    document.getElementById('sysPill').innerHTML =
+      'FRIDAY <b>online</b> · workspace: '+esc(s.workspace);
+    if(s.fast_metrics){
+      const m=s.fast_metrics;
+      document.getElementById('fastMetrics').innerHTML =
+        `⚡ JEV — ondas paralelas: <b>${m.parallel_waves}</b> · cache hits: <b>${m.cache_hits}</b> · p50: <b>${m.latency_p50_s}s</b> · p95: <b>${m.latency_p95_s}s</b>`;
+    }
+    const pa = s.pending_approval;
+    const box = document.getElementById('approveBox');
+    if(pa){ box.classList.add('show');
+      document.getElementById('approveMsg').textContent = '🛡 '+pa.question; }
+    else box.classList.remove('show');
+  }catch(e){ document.getElementById('sysPill').textContent='FRIDAY offline'; }
+}
+
+async function refreshBriefing(){
+  try{
+    const b = await api('/api/briefing');
+    const el = document.getElementById('briefing');
+    if(b.error){ el.innerHTML='<div class="empty">'+esc(b.error)+'</div>'; return; }
+    let html='';
+    if(b.weather && b.weather.ok){
+      html+=`<div class="brief-sec"><b>Clima — ${esc(b.weather.city)}</b>
+        <ul><li>${esc(b.weather.desc)} · ${b.weather.temp_c}°C (sente-se ${b.weather.feels_like_c}°C) · humidade ${b.weather.humidity}% · máx ${b.weather.max_c}°</li></ul></div>`;
+    }
+    const news = b.news||{};
+    for(const topic in news){
+      if(!news[topic]||!news[topic].length) continue;
+      html+=`<div class="brief-sec"><b>${esc(topic)}</b><ul>`+
+        news[topic].slice(0,3).map(i=>`<li><a href="${esc(i.url)}" target="_blank">${esc(i.title)}</a></li>`).join('')+
+        `</ul></div>`;
+    }
+    if(b.ai_news&&b.ai_news.length){
+      html+=`<div class="brief-sec"><b>Novidades de IA</b><ul>`+
+        b.ai_news.slice(0,3).map(i=>`<li><a href="${esc(i.url)}" target="_blank">${esc(i.title)}</a></li>`).join('')+`</ul></div>`;
+    }
+    if(b.executive_summary&&b.executive_summary.length){
+      html+=`<div class="brief-sec"><b>Resumo executivo</b><ul>`+
+        b.executive_summary.map(i=>`<li>${esc(i)}</li>`).join('')+`</ul></div>`;
+    }
+    el.innerHTML = html || '<div class="empty">briefing vazio</div>';
+  }catch(e){}
+}
+
+async function refreshAlerts(){
+  try{
+    const a = await api('/api/alerts');
+    const el = document.getElementById('alerts');
+    const items = a.alerts||[];
+    if(!items.length){ el.innerHTML='<div class="empty">sem alertas — tudo sob controlo</div>'; return; }
+    el.innerHTML = items.slice().reverse().slice(0,8).map(i=>
+      `<div class="alert ${i.level}">${esc(i.message)}<span class="when">${esc(i.time||'')} · ${esc(i.kind)}</span></div>`
+    ).join('');
+  }catch(e){}
+}
+
+async function refreshTasks(){
+  try{
+    const t = await api('/api/tasks');
+    const el = document.getElementById('tasks');
+    const items = t.tasks||[];
+    if(!items.length){ el.innerHTML='<div class="empty">nenhuma missão ainda</div>'; return; }
+    el.innerHTML = items.slice(0,8).map(i=>
+      `<div class="task"><div class="obj">${esc(i.objective)}</div>
+        <div class="steps">${i.steps_done}/${i.steps_total}</div>
+        <span class="status ${i.status}">${i.status}</span></div>`).join('');
+  }catch(e){}
+}
+
+async function refreshCaps(){
+  try{
+    const c = await api('/api/capabilities');
+    const el = document.getElementById('caps');
+    const items = c.capabilities||[];
+    el.innerHTML = items.map(i=>
+      `<div class="cap"><div class="n">${esc(i.name)}</div><div class="d">${esc(i.description)}</div>
+        <div class="meta"><span class="chip">${esc(i.category)}</span>
+        <span class="chip ${i.healthy?'ok':'bad'}">${i.healthy?'pronta':'inativa'}</span>
+        ${i.requires_approval?'<span class="chip crit">aprovação</span>':''}
+        ${i.risk!=='none'?`<span class="chip">${esc(i.risk)}</span>`:''}</div></div>`).join('');
+    const ok = items.filter(i=>i.healthy).length;
+    document.getElementById('capDot').className = 'dot'+(ok===items.length?'':' off');
+  }catch(e){}
+}
+
+async function runMission(){
+  const inp = document.getElementById('objective');
+  const objective = inp.value.trim();
+  if(!objective) return;
+  inp.value='';
+  await api('/api/objective',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({objective})});
+  setTimeout(()=>{refreshTasks();refreshAlerts();},1200);
+  setTimeout(()=>{refreshTasks();refreshAlerts();refreshBriefing();},5000);
+}
+
+async function approve(ok){
+  await api('/api/approve',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({approve:ok})});
+  document.getElementById('approveBox').classList.remove('show');
+}
+
+refreshStatus();refreshBriefing();refreshAlerts();refreshTasks();refreshCaps();
+setInterval(()=>{refreshStatus();refreshAlerts();refreshTasks();},5000);
+setInterval(()=>{refreshBriefing();refreshCaps();},30000);
+</script>
+</body>
+</html>

@@ -1,12 +1,44 @@
 # JIAC FRIDAY — Estado Actual
 
-> Última actualização: 2026-10-08
-> Versão: v0.5
+> Última actualização: 2026-10-10
+> Versão: v1.0
 > Repo: https://github.com/jiacagency-art/friday-fusion
 
 ---
 
-## Resumo Executivo
+## Resumo Executivo v1.0 — SISTEMA OPERACIONAL COMPLETO
+
+**32/32 testes de fumo passam · 5/5 missões do demo completo · sem nenhuma API key obrigatória** ✅
+
+A v1.0 implementa a visão completa (JIAC_FRIDAY_Visao_Completa_ATUALIZADA.md):
+
+| Sistema | Estado |
+|---|---|
+| ⚡ Fast Execution Fabric (JEV) — ondas paralelas + cache + p50/p95 | ✅ REAL |
+| 🛡 Permission System — READ→CRITICAL + audit + aprovação humana | ✅ REAL |
+| 🔄 Recovery Engine — estratégias por tipo de erro | ✅ REAL |
+| 🎬 Video Editor — ffmpeg: corte, vertical/horizontal, legendas, destaque, storyboard | ✅ REAL |
+| ☀️ Briefing proativo — clima + notícias + IA + agenda + resumo (sem API keys) | ✅ REAL |
+| 📊 Data Engine — CSV/JSON: perfil, estatísticas, correlações, group-by | ✅ REAL |
+| 💼 Agent-Reach real — prospecção → lista CRM CSV/MD/JSON | ✅ REAL |
+| ✉️ Communication Engine — SMTP real (com aprovação) ou rascunho honesto | ✅ REAL |
+| 🤖 Agent Factory — 7 agentes especializados criados on-demand | ✅ REAL |
+| 🔎 Capability Discovery — repos GitHub → capabilities TOOL | ✅ REAL |
+| 🖥 Dashboard web — cartões/alertas/missões em http://localhost:8500 | ✅ REAL |
+| 🧠 Memory (Mem0/SQLite) · 📅 Scheduler 24/7 · 📈 Self-Improvement | ✅ REAL |
+
+**Resultados dos testes reais (sem API keys):**
+- Demo: briefing 8.2s · vídeo 10.4s (storyboard+corte+vertical) · dados 0.0s · prospecção 13.3s (7 leads reais) · email 0.0s
+- JEV: 1ª execução 5.0s (2 ondas paralelas) · 2ª execução 0.0s (2 cache hits)
+- Permissions: CRITICAL negado sem aprovação ✓ · permitido com aprovação ✓ · draft (prepare) sem atrito ✓
+- Capability Discovery: github.com/psf/requests clonado, MIT detectado, search_code 30 hits
+- Dashboard: HTML 14KB + 6 endpoints API + POST de missões em background ✓
+
+**Instalação:** ver INSTALAR.md (3 minutos, 3 comandos)
+
+---
+
+## Estado anterior (v0.5)
 
 **TODOS OS 5 ENGINES ESTÃO DISPONÍVEIS (5/5)** ✅
 
@@ -18,6 +50,7 @@ Os 3 engines anteriormente bloqueados foram resolvidos:
 O FRIDAY executou com sucesso o objetivo real "Pesquisa as 10 maiores empresas de Angola" usando os 5 engines em colaboração.
 
 ---
+
 
 ## 5 Engines Reais — TODOS DISPONÍVEIS
 
